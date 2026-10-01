@@ -1,0 +1,23 @@
+# Default: let git normalise text in the repo, check out native endings.
+* text=auto
+
+# These must round-trip byte for byte. A hex image gets flashed to a PIC32 and
+# Gerbers/drill files get sent to a fab house: no end-of-line rewriting, ever.
+*.hex   -text
+*.gbr   -text
+*.drl   -text
+*.mop   -text
+
+# Recorded EEG: keep exactly as written by the server.
+software/recordings/** -text
+
+# Binary assets, so git never tries to diff or convert them.
+*.zip   binary
+*.pdf   binary
+*.jpg   binary
+*.png   binary
+*.webp  binary
+*.pcb   binary
+*.sch   binary
+*.stl   binary
+*.3mf   binary
