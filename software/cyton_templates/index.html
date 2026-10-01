@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cyton Live</title>
+<style>
+  :root {
+    --bg:      #ffffff;
+    --fg:      #111111;
+    --muted:   #666666;
+    --line:    #d8d8d8;
+    --panel:   #f6f6f6;
+    --grid:    #e8e8e8;
+    --ok:      #17803d;
+    --bad:     #c02626;
+  }
+  html[data-theme="dark"] {
+    --bg:      #101216;
+    --fg:      #e8e8e8;
+    --muted:   #9099a6;
+    --line:    #2a2f38;
+    --panel:   #181b21;
+    --grid:    #23272f;
+    --ok:      #3ecf6a;
+    --bad:     #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 14px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  h1 { font-size: 15px; margin: 0 12px 0 0; font-weight: 700; letter-spacing: .02em; }
+  .spacer { flex: 1; }
+  button, select {
+    font: inherit; padding: 5px 11px; cursor: pointer;
+    background: var(--bg); color: var(--fg);
+    border: 1px solid var(--line); border-radius: 4px;
+  }
+  button:hover { border-color: var(--muted); }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button.rec    { border-color: var(--bad); color: var(--bad); font-weight: 700; }
+  button.recing { background: var(--bad); color: #fff; border-color: var(--bad); }
+  button.go     { border-color: var(--ok); color: var(--ok); font-weight: 700; }
+  button.going  { background: var(--ok); color: #fff; border-color: var(--ok); }
+  .bar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 8px 14px; border-bottom: 1px solid var(--line);
+  }
+  .grp { display: flex; align-items: center; gap: 5px; }
+  .grp > span.lbl { color: var(--muted); margin-right: 3px; }
+  .stat { color: var(--muted); }
+  .stat b { color: var(--fg); font-weight: 700; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; }
+  .up { background: var(--ok); } .down { background: var(--bad); }
+  .idle { background: #d99400; }
+  #wrap { padding: 10px 14px; }
+  canvas { width: 100%; height: 62vh; display: block; border: 1px solid var(--line); border-radius: 4px; }
+  input[type=text], input[type=number] {
+    font: inherit; background: var(--bg); color: var(--fg);
+    border: 1px solid var(--line); border-radius: 4px; padding: 4px 7px;
+  }
+  input[type=text] { width: 130px; } input[type=number] { width: 78px; }
+  .note { color: var(--muted); padding: 0 14px 12px; font-size: 12px; }
+
+  /* ---------- cue panel ---------- */
+  #cue {
+    display: none; padding: 26px 18px 18px; text-align: center;
+    border-bottom: 1px solid var(--line);
+    background: var(--cue-bg, var(--panel)); color: var(--cue-fg, var(--fg));
+    transition: background .25s ease, color .25s ease;
+  }
+  #cue.on { display: block; }
+  #cueText { font-size: clamp(38px, 8vw, 92px); font-weight: 800; line-height: 1.05;
+             letter-spacing: .01em; }
+  #cueSub  { font-size: clamp(14px, 2vw, 20px); opacity: .8; margin-top: 10px; min-height: 1.4em; }
+  #cueMeta { display: flex; justify-content: center; gap: 26px; margin-top: 14px;
+             font-size: 14px; opacity: .85; }
+  #cueCount { font-variant-numeric: tabular-nums; font-weight: 700; }
+  #cueBarOuter { height: 6px; background: rgba(128,128,128,.28); border-radius: 3px;
+                 margin: 14px auto 0; max-width: 720px; overflow: hidden; }
+  #cueBarInner { height: 100%; width: 0%; background: currentColor; opacity: .7;
+                 transition: width .2s linear; }
+
+  /* style themes, chosen by the server per step */
+  #cue[data-style="neutral"] { --cue-bg: var(--panel);  --cue-fg: var(--fg); }
+  #cue[data-style="open"]    { --cue-bg: #e8f1ff;       --cue-fg: #123a6b; }
+  #cue[data-style="closed"]  { --cue-bg: #0d0f13;       --cue-fg: #8fa2bf; }
+  #cue[data-style="cue"]     { --cue-bg: #fff3d6;       --cue-fg: #6b4a00; }
+  #cue[data-style="active"]  { --cue-bg: #e3f7e8;       --cue-fg: #14532d; }
+  #cue[data-style="rest"]    { --cue-bg: #eeeeee;       --cue-fg: #444444; }
+  html[data-theme="dark"] #cue[data-style="open"]   { --cue-bg: #12243d; --cue-fg: #bcd6ff; }
+  html[data-theme="dark"] #cue[data-style="cue"]    { --cue-bg: #3a2f10; --cue-fg: #ffd98a; }
+  html[data-theme="dark"] #cue[data-style="active"] { --cue-bg: #13301d; --cue-fg: #8ef0ab; }
+  html[data-theme="dark"] #cue[data-style="rest"]   { --cue-bg: #1b1e24; --cue-fg: #a8b0bd; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>CYTON LIVE</h1>
+  <span class="stat"><span id="dot" class="dot down"></span><span id="conn">connecting</span></span>
+  <span class="stat">rate <b id="rate">0</b> Hz</span>
+  <span class="stat">dropped <b id="drop">0</b></span>
+  <span class="stat">samples <b id="tot">0</b></span>
+  <span class="spacer"></span>
+  <button id="theme">dark</button>
+</header>
+
+<!-- big participant-facing cue -->
+<div id="cue" data-style="neutral">
+  <div id="cueText">—</div>
+  <div id="cueSub"></div>
+  <div id="cueMeta">
+    <span id="cueName"></span>
+    <span id="cueStep"></span>
+    <span id="cueCount">0.0s</span>
+  </div>
+  <div id="cueBarOuter"><div id="cueBarInner"></div></div>
+</div>
+
+<div class="bar">
+  <div class="grp">
+    <span class="lbl">experiment</span>
+    <select id="expSel"></select>
+    <button id="expBtn" class="go">▶ start experiment</button>
+    <span class="stat" id="expInfo"></span>
+  </div>
+</div>
+
+<div class="bar">
+  <div class="grp">
+    <span class="lbl">stream</span>
+    <button data-cmd="b">start (b)</button>
+    <button data-cmd="s">stop (s)</button>
+    <button data-cmd="v">reset (v)</button>
+  </div>
+  <div class="grp">
+    <span class="lbl">test signal</span>
+    <button data-cmd="[">square 2x</button>
+    <button data-cmd="-">square 1x</button>
+    <button data-cmd="0">ground</button>
+    <button data-cmd="d">normal (d)</button>
+  </div>
+  <div class="grp">
+    <span class="lbl">scale</span>
+    <input type="number" id="scale" value="0" min="0" step="10">
+    <span class="stat">µV/ch (0 = auto)</span>
+  </div>
+  <div class="grp">
+    <span class="lbl">window</span>
+    <input type="number" id="win" value="5" min="1" max="30" step="1">
+    <span class="stat">s</span>
+  </div>
+</div>
+
+<div class="bar">
+  <div class="grp">
+    <span class="lbl">record</span>
+    <input type="text" id="label" placeholder="label (optional)">
+    <button id="rec" class="rec">● start recording</button>
+    <span class="stat" id="recinfo"></span>
+  </div>
+</div>
+
+<div id="wrap"><canvas id="plot"></canvas></div>
+<div class="note" id="msg"></div>
+
+<script>
+const NCH = {{ channels }};
+const FS  = {{ fs }};
+
+const COLORS = ["#d62728","#2ca02c","#1f77b4","#ff7f0e",
+                "#9467bd","#00a0a0","#8c564b","#e377c2"];
+
+// ---- theme ---------------------------------------------------------------
+const root = document.documentElement;
+function setTheme(t) {
+  root.setAttribute("data-theme", t);
+  document.getElementById("theme").textContent = t === "dark" ? "light" : "dark";
+  try { localStorage.setItem("cyton-theme", t); } catch (e) {}
+}
+try { setTheme(localStorage.getItem("cyton-theme") || "light"); } catch (e) { setTheme("light"); }
+document.getElementById("theme").onclick = () =>
+  setTheme(root.getAttribute("data-theme") === "dark" ? "light" : "dark");
+
+// ---- data ----------------------------------------------------------------
+let nextIdx = 0;
+let buf = Array.from({length: NCH}, () => []);
+let maxLen = FS * 5;
+
+function trim() {
+  for (let i = 0; i < NCH; i++)
+    if (buf[i].length > maxLen) buf[i].splice(0, buf[i].length - maxLen);
+}
+
+async function poll() {
+  try {
+    const r = await fetch("/api/data?since=" + nextIdx);
+    const j = await r.json();
+    nextIdx = j.next;
+    for (const s of j.samples)
+      for (let i = 0; i < NCH; i++) buf[i].push(s[i]);
+    trim();
+  } catch (e) {}
+  setTimeout(poll, 50);
+}
+
+// ---- experiments ---------------------------------------------------------
+let expList = [];
+let expRunning = false;
+
+async function loadExperiments() {
+  try {
+    const j = await (await fetch("/api/experiments")).json();
+    expList = j.experiments;
+    const sel = document.getElementById("expSel");
+    sel.innerHTML = "";
+    for (const e of expList) {
+      const o = document.createElement("option");
+      o.value = e.id;
+      o.textContent = `${e.name}`;
+      sel.appendChild(o);
+    }
+    showExpInfo();
+  } catch (e) {}
+}
+function showExpInfo() {
+  const id = document.getElementById("expSel").value;
+  const e = expList.find(x => x.id === id);
+  document.getElementById("expInfo").textContent =
+    e ? `${e.steps} steps · ${Math.round(e.seconds)}s — ${e.description}` : "";
+}
+document.getElementById("expSel").onchange = showExpInfo;
+
+document.getElementById("expBtn").onclick = async () => {
+  const body = expRunning
+    ? {action: "stop"}
+    : {action: "start",
+       id: document.getElementById("expSel").value,
+       label: document.getElementById("label").value};
+  try {
+    const r = await (await fetch("/api/experiment", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body)
+    })).json();
+    msg.textContent = r.ok
+      ? (expRunning ? "experiment stopped — saved " + r.message
+                    : "experiment running — recording to " + r.message)
+      : "failed: " + r.error;
+  } catch (e) { msg.textContent = "failed: " + e; }
+};
+
+function renderCue(x) {
+  const panel = document.getElementById("cue");
+  expRunning = x.running;
+  const btn = document.getElementById("expBtn");
+  btn.classList.toggle("going", x.running);
+  btn.textContent = x.running ? "■ stop experiment" : "▶ start experiment";
+  document.getElementById("expSel").disabled = x.running;
+
+  if (!x.running) { panel.classList.remove("on"); return; }
+  panel.classList.add("on");
+  panel.setAttribute("data-style", x.style || "neutral");
+  document.getElementById("cueText").textContent = x.cue || "—";
+  document.getElementById("cueSub").textContent  = x.sub || "";
+  document.getElementById("cueName").textContent = x.name || "";
+  document.getElementById("cueStep").textContent = `step ${x.step} / ${x.steps}`;
+  document.getElementById("cueCount").textContent = x.remaining.toFixed(1) + "s";
+  const pct = x.step_len > 0 ? (1 - x.remaining / x.step_len) * 100 : 0;
+  document.getElementById("cueBarInner").style.width = Math.max(0, Math.min(100, pct)) + "%";
+}
+
+async function pollStatus() {
+  try {
+    const s = await (await fetch("/api/status")).json();
+    document.getElementById("dot").className =
+      "dot " + (s.streaming ? "up" : (s.connected ? "idle" : "down"));
+    document.getElementById("conn").textContent =
+      !s.connected ? ("disconnected — " + (s.error || "retrying"))
+      : s.streaming ? ("streaming — " + s.bridge)
+                    : ("connected, idle — press start (b)");
+    document.getElementById("rate").textContent = s.rate.toFixed(1);
+    document.getElementById("drop").textContent = s.dropped;
+    document.getElementById("tot").textContent  = s.total;
+
+    const btn = document.getElementById("rec");
+    btn.classList.toggle("recing", s.recording);
+    btn.textContent = s.recording ? "■ stop recording" : "● start recording";
+    btn.disabled = s.experiment.running;
+    document.getElementById("recinfo").textContent =
+      s.recording ? `${s.rec_name} — ${s.rec_count} samples`
+                  : (s.rec_name ? `last: ${s.rec_name}` : "");
+
+    renderCue(s.experiment);
+  } catch (e) {}
+  setTimeout(pollStatus, 200);
+}
+
+// ---- drawing -------------------------------------------------------------
+const cv = document.getElementById("plot");
+const cx = cv.getContext("2d");
+
+function css(v) { return getComputedStyle(root).getPropertyValue(v).trim(); }
+
+function draw() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (cv.width !== w * dpr || cv.height !== h * dpr) {
+    cv.width = w * dpr; cv.height = h * dpr;
+  }
+  cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cx.clearRect(0, 0, w, h);
+  cx.fillStyle = css("--bg"); cx.fillRect(0, 0, w, h);
+
+  const winSec = Math.max(1, +document.getElementById("win").value || 5);
+  maxLen = Math.round(FS * winSec);
+
+  const padL = 52, padR = 8, padT = 8, padB = 20;
+  const pw = w - padL - padR, ph = h - padT - padB;
+  const band = ph / NCH;
+
+  cx.strokeStyle = css("--grid"); cx.lineWidth = 1;
+  cx.fillStyle = css("--muted"); cx.font = "11px monospace";
+  for (let s = 0; s <= winSec; s++) {
+    const x = padL + pw * (1 - s / winSec);
+    cx.beginPath(); cx.moveTo(x, padT); cx.lineTo(x, padT + ph); cx.stroke();
+    if (s) cx.fillText("-" + s + "s", x - 10, h - 6);
+  }
+
+  let manual = +document.getElementById("scale").value || 0;
+  let peak = 1e-6;
+  const means = [];
+  for (let i = 0; i < NCH; i++) {
+    const d = buf[i];
+    if (!d.length) { means.push(0); continue; }
+    let m = 0; for (const v of d) m += v; m /= d.length;
+    means.push(m);
+    for (const v of d) { const a = Math.abs(v - m); if (a > peak) peak = a; }
+  }
+  const half = manual > 0 ? manual / 2 : peak * 1.15;
+
+  for (let i = 0; i < NCH; i++) {
+    const yMid = padT + band * i + band / 2;
+    const d = buf[i];
+
+    cx.strokeStyle = css("--grid");
+    cx.beginPath(); cx.moveTo(padL, yMid); cx.lineTo(padL + pw, yMid); cx.stroke();
+
+    cx.fillStyle = COLORS[i % COLORS.length];
+    cx.font = "bold 11px monospace";
+    cx.fillText("ch" + (i + 1), 6, yMid - 3);
+    if (d.length) {
+      cx.fillStyle = css("--muted"); cx.font = "10px monospace";
+      cx.fillText(Math.round(d[d.length - 1]) + "µV", 6, yMid + 10);
+    }
+    if (!d.length) continue;
+
+    cx.strokeStyle = COLORS[i % COLORS.length];
+    cx.lineWidth = 1.1; cx.beginPath();
+    const n = d.length, step = Math.max(1, Math.floor(n / pw));
+    let first = true;
+    for (let k = 0; k < n; k += step) {
+      const x = padL + pw * (1 - (n - k) / maxLen);
+      let y = yMid - ((d[k] - means[i]) / half) * (band / 2 - 3);
+      y = Math.max(padT + band * i + 1, Math.min(padT + band * (i + 1) - 1, y));
+      if (first) { cx.moveTo(x, y); first = false; } else cx.lineTo(x, y);
+    }
+    cx.stroke();
+  }
+
+  cx.fillStyle = css("--muted"); cx.font = "10px monospace";
+  cx.fillText("±" + Math.round(half) + "µV", w - 78, padT + 11);
+
+  requestAnimationFrame(draw);
+}
+
+// ---- controls ------------------------------------------------------------
+const msg = document.getElementById("msg");
+async function send(cmd) {
+  msg.textContent = "sending " + JSON.stringify(cmd) + " ...";
+  try {
+    const r = await (await fetch("/api/command", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({cmd})
+    })).json();
+    msg.textContent = r.ok ? "sent " + JSON.stringify(cmd) : "failed: " + r.error;
+  } catch (e) { msg.textContent = "failed: " + e; }
+}
+document.querySelectorAll("button[data-cmd]").forEach(b =>
+  b.onclick = () => send(b.dataset.cmd));
+
+document.getElementById("rec").onclick = async () => {
+  const recing = document.getElementById("rec").classList.contains("recing");
+  const body = recing ? {action: "stop"}
+                      : {action: "start", label: document.getElementById("label").value};
+  try {
+    const r = await (await fetch("/api/record", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body)
+    })).json();
+    msg.textContent = r.ok ? (recing ? "saved " + r.message : "recording to " + r.message)
+                           : "failed: " + r.error;
+  } catch (e) { msg.textContent = "failed: " + e; }
+};
+
+loadExperiments(); poll(); pollStatus(); draw();
+</script>
+</body>
+</html>

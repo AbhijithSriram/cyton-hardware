@@ -1,0 +1,17 @@
+# ---------------------------------------------------------------------------
+# Upstream clones. All public, all pinned in VENDOR.md, all restorable with
+# one command. Nothing tracked here depends on them being present.
+# ---------------------------------------------------------------------------
+/vendor/
+
+# ---------------------------------------------------------------------------
+# Headset mechanicals: ~710 MB of STL/3MF.
+#   mechanical/ultracortex-upstream/  OpenBCI/Ultracortex @ 338b52b
+#   mechanical/a1-mini-prints/        the plates actually printed (2.6 MB, mine)
+# Kept on disk, out of git history. To track the A1 Mini plates instead,
+# delete the second line below.
+# ---------------------------------------------------------------------------
+/mechanical/
+
+__pycache__/
+*.pyc

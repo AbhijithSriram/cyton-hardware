@@ -1,0 +1,6 @@
+﻿OpenBCI V3 8-16 channel
+On Board ADS1299 Device ID: 0x3E
+LIS3DH Device ID: 0x33
+Firmware: v3.1.2
+$$$Board up
+$$$
